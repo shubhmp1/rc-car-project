@@ -17,7 +17,7 @@ And I picked an RC car specifically because outside of computers, cars are what 
 
 ---
 
-## 🎥 Demo
+## Demo
 
 **Video:** _[YouTube link coming soon]_
 
@@ -36,14 +36,35 @@ The car runs on two ESP32s (one in the handheld remote, one on the car), communi
 
 ## Hardware
 
-- **2× ESP32** (remote + car), communicating via nRF24L01
-- **Custom PCBs** for both the car and remote, designed in Altium (schematic, layout, and routing done from scratch)
-- **Brushed DC motor** driven through an L298N motor driver
-- **Servo-based steering** (Ackermann-style geometry)
-- **VL53L0X/VL53L1X ToF sensor** for obstacle detection
-- **2× TCRT5000 IR sensors** for line/lane tracking
-- **TFT display** on the remote showing speed, mode, and live sensor telemetry
-- **3D-printed chassis, wheels, and mounts**, iterated through multiple print revisions
+Full parts list and exact values are in the [Specs](#specs) table below. At a high level: two ESP32s (one per board), custom Altium PCBs for both the car and remote, a brushed DC gear motor through an L298N driver, servo-based Ackermann steering, a ToF sensor for obstacle detection, IR sensors for line tracking, and a 3D-printed chassis/wheel set iterated across several print revisions.
+
+## Specs
+
+| Spec | Value |
+|---|---|
+| MCU | 2× ESP32 (one in the remote, one on the car) |
+| Communication | nRF24L01, 250kbps, with ACK-payload telemetry back to the remote |
+| Motor | GA12-N20, 6V, 200RPM, all-metal gearbox, 3mm shaft |
+| Motor Driver | L298N |
+| Steering | Standard positional servo, Ackermann-style linkage |
+| Joystick | PS2-style dual-axis breakout module |
+| Display | Waveshare 2.4" SPI LCD, 240×320, 65K color |
+| Obstacle Sensor | VL53L1X ToF (long-range mode) |
+| Line Sensors | 2× TCRT5000 IR reflectance sensors |
+| Chassis / Wheels | 3D-printed (PLA), iterated through multiple print revisions |
+| PCBs | Custom, designed in Altium (one for the car, one for the remote) |
+
+## How it works
+
+**Communication:** the remote and car each run their own ESP32, talking over an nRF24L01 RF link. Every ~50ms the remote sends a small packet containing motor speed, steering angle, current mode, and (in auto-driving mode) an armed flag and target cruise speed. The car replies on the same exchange using nRF24's ACK-payload feature, sending back live sensor readings (IR states, ToF distance, current speed, and status flags) so the remote's display can show what the car is actually doing in real time, not just what was last commanded.
+
+**Standard driving mode:** joystick input is normalized, run through a small deadzone, shaped with an exponential curve (so small stick movements give fine control, large movements ramp up quickly), and slew-rate limited before being sent, so the motor doesn't jump instantly between speeds or slam through zero when reversing.
+
+**Auto-driving mode:** the car ignores direct joystick input entirely and drives itself off two inputs: two IR sensors on the underside detect track-edge markers and nudge steering back toward center when either sensor sees the line, and a ToF sensor up front continuously calculates a dynamic safe-stopping distance based on the car's current speed (faster speed → longer required stopping distance), slowing or fully stopping the car as it approaches obstacles. The remote is used first to set a target cruise speed, then the car handles both throttle and steering on its own within that mode.
+
+**Displays and modes:** the remote's screen (driven over SPI) shows different HUDs depending on the active mode, live speed/direction/steering in standard mode, or live sensor telemetry and braking status in auto-driving mode, so you can see what the car's sensors are reading even while it's driving itself.
+
+Full firmware for both boards is in [`firmware/`](firmware/).
 
 ## Repo structure
 
